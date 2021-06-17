@@ -1,21 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
-
-
-
-
-
-# In[1]:
-
-
-
-
-
-# In[1]:
-
-
 import re
 import numpy as np
 import pandas as pd
@@ -149,7 +134,8 @@ def report_output(report):
                 ws4.append(row)
                 
             else:
-                Genotype_1.append(reads_in_row[0][1])
+                G1 = str(reads_in_row[0][1])+","+str(reads_in_row[0][1])
+                Genotype_1.append(G1)
                 Reads_1.append(reads_in_row[0][2])
                 print(Genotype_1)
                 row = [report[x][0], Genotype_1[-1],Reads_1[-1]]
@@ -159,15 +145,20 @@ def report_output(report):
             Reads_1.clear()
             Reads_2.clear()
     return None
+
+#argument
+parser = argparse.ArgumentParser(description='output')
+parser.add_argument('--input',type=str,default="",help="your input filename should be same as FILENAME!")
+args = parser.parse_args()
     
 #read file
-df = pd.read_csv('B5_0717_004_predict.csv', encoding='utf-8')
-filename = 'MB5_0717_004_predict.xlsx'
+df = pd.read_csv('testset/'+args.input+'_predict.csv', encoding='utf-8')
+filename = args.input+'_predict_output.xlsx'
 df.to_excel(filename)
 wb = load_workbook(filename)
 sheetnames = wb.sheetnames
 ws = wb[sheetnames[0]]
-
+ws.title ="AI pred"
 print("Work sheet title:", ws.title)
 print("Work sheet rows:", ws.max_row)
 print("Work sheet cols:", ws.max_column)
@@ -193,7 +184,8 @@ fetch_data(8,reads_list)
 
 #create a new sheet    
 ws2 = wb.create_sheet(title='Detail')    
-STR_head = ['Pattern','Sequence','Assuming result','Allele name','Checktype','Locus','Reads','Nomenclature']
+#STR_head = ['Pattern','Sequence','Assuming result','Allele name','Checktype','Locus','Reads','Nomenclature']
+STR_head = ['Locus','Allele name','Reads','Assuming result','Sequence','Nomenclature','Pattern','Checktype']
 ws2.append(STR_head)
 
 #creat the report
@@ -209,14 +201,18 @@ for i in range(1,ws.max_row):
         if len(p) != 3 :
             r = [locus_list[i],seq_list[i],pat_list[i],end_list[i],start_list[i],reads_list[i]]
             ws3.append(r)
+            ws.delete_cols(i,1)
     elif 'PentaD' in locus_list[i] or 'PentaE' in locus_list[i]:
         if len(p) != 5 :    
             r = [locus_list[i],seq_list[i],pat_list[i],end_list[i],start_list[i],reads_list[i]]
             ws3.append(r)
+            ws.delete_cols(i,1)
     else:
         if len(p) != 4:
             r = [locus_list[i],seq_list[i],pat_list[i],end_list[i],start_list[i],reads_list[i]]
             ws3.append(r)
+            ws.delete_cols(i,1)
+    
 
 #Amelogenin
 reads_y = 0
@@ -230,9 +226,13 @@ for row in range(1,ws.max_row):
         else:
             continue
 if reads_x != 0 and reads_y != 0:
-    reads = str(reads_x)+","+str(reads_y)
-    r = ['Amelogenin','X,Y',reads]
-    ws4.append(r)
+    if reads_x * 0.2 <= reads_y:
+        reads = str(reads_x)+","+str(reads_y)
+        r = ['Amelogenin','X,Y',reads]
+        ws4.append(r)
+    else:
+        r = ['Amelogenin', 'X,X', reads_x]
+        ws4.append(r)
 elif reads_x != 0 and reads_y == 0:
     r = ['Amelogenin','X,X',reads_x]
     ws4.append(r)
@@ -243,14 +243,16 @@ for row in range(1,ws.max_row):
     print("_______row", int(row)+1 , "start","_______")
     if seq_list[row] == None:
       #  print("No sequence.")
-        break
-    test_str = " "+ seq_list[row]
-    pattern = re.sub(r'[\u4E00-\u9FFF+]', test_str, pat_list[row])
-    group_Ori,matchGroup_Ori,matchNum_Ori,spot_Ori,calcu_Ori = regex(pattern,test_str)
-    print('Locus' , locus_list[row])
+        print("NO")
+        continue
+    else:
+        test_str = " "+ seq_list[row]
+        pattern = re.sub(r'[\u4E00-\u9FFF+]', test_str, pat_list[row])
+        group_Ori,matchGroup_Ori,matchNum_Ori,spot_Ori,calcu_Ori = regex(pattern,test_str)
+        print('Locus' , locus_list[row])
     for i in range(len(spot)):   #(AAA)m X-Y mutation
         if spot_Ori[i] != calcu_Ori[i] : #calcu[i]是突變點位
-      #      print ("{}-{} mutation".format(calcu[i],spot[i]))
+            print ("{}-{} mutation".format(calcu[i],spot[i]))
             break
         else:
             spot_Ori[i] == calcu_Ori[i]
@@ -261,8 +263,8 @@ for row in range(1,ws.max_row):
         ws3.append(r)
         result = 'Error'
         RepeatNum = "Unknown"
-        checktype = "Error"
-        u = [pat_list[row],seq_list[row],result,RepeatNum,checktype ,locus_list[row],reads_list[row]]
+        checktype = "Error" #STR_head = ['Locus','Allele name','Reads','Assuming result','Sequence','Nomenclature','Pattern','Checktype']
+        u = [locus_list[row],RepeatNum,reads_list[row],result,seq_list[row]," ",pat_list[row],checktype]
         ws2.append(u)
         continue
     if 'Amelogenin' in locus_list[row]:
@@ -357,8 +359,13 @@ for row in range(1,ws.max_row):
                         m+=1
     
                     result = "(" + matchGroup_Ori + ")" + str(matchNum_Ori) +mutate_str
-                    RepeatNum = matchNum_Ori +len(mutate_str)//len(matchGroup_Ori)
+                    if len(mutate_str)%len(matchGroup_Ori) != 0 :
+                        tail = (len(mutate_str) % len(matchGroup_Ori))/10
+                        RepeatNum = matchNum_Ori+len(mutate_str)//len(matchGroup_Ori)+tail
+                    else:
+                        RepeatNum = matchNum_Ori +len(mutate_str)//len(matchGroup_Ori)
                     checktype = "weird"
+
                     
                  #   print("====result====(weird): ", result ,RepeatNum)   
             elif len(spot_Ano) == 0:
@@ -473,7 +480,10 @@ for row in range(1,ws.max_row):
             #    print("====result====(OTOT): ", result , RepeatNum)
             elif spot_Ori[-1] == calcu_Ori[-2] and spot_Ori[-1] != calcu_Ori[-1]:
                 result = "(" + matchGroup_Ori + ")" + str(matchNum_Ori) + str(mutate_str)
-                RepeatNum = int(matchNum_Ori)
+                if len(mutate_str) <4:
+                    RepeatNum = str(matchNum_Ori)+"."+str(len(mutate_str))
+                else:
+                    RepeatNum = int(matchNum_Ori)
                 checktype = "non-DADA"
              #   print("====result====(non-DADA): ", result , RepeatNum)
             #(TCTA)4TCA(TCTA)7
@@ -488,7 +498,13 @@ for row in range(1,ws.max_row):
                 if len(mutate_list) >1 :
                     b = mutate_list[-1]
                     mutate_str2 = test_str[spot_Ori[b-1]+len(matchGroup_Ori):spot_Ori[b]]
-                    if get_pattern(mutate_str2) == None:
+                    if len(mutate_str2)<= len(matchGroup_Ori) :
+                        result="Error"
+                        RepeatNum = "unknown"
+                        checktype = "DADAError"
+                #        print("====result====(DADAError): ", result ,RepeatNum) 
+                        continue
+                    elif get_pattern(mutate_str2) == None:
                         result="Error"
                         RepeatNum = "unknown"
                         checktype = "DADAError"
@@ -513,11 +529,49 @@ for row in range(1,ws.max_row):
                     
                 else:
                     if get_pattern(mutate_str) !=None:
-                            group_mid,matchGroup_mid,matchNum_mid,spot_mid,calcu_mid = regex(get_pattern(mutate_str),mutate_str)
+                        last_str = test_str[m:]
+                        last_str_space =  " "+last_str
+                        mutate_str_space = " "+mutate_str
+                        if 'TCCATA' in test_str:
+                            mid_point = "TCCATA"
+                            group_mid,matchGroup_mid,matchNum_mid,spot_mid,calcu_mid = regex(get_pattern(mutate_str),mutate_str_space)
+                            group_forth, matchGroup_forth, matchNum_forth, spot_forth, calcu_forth = regex(mid_point, last_str_space)
+                            fifth_str=last_str_space[0:spot_forth[0]]
+                            sixth_str=last_str_space[spot_forth[0]+6:]
+                            sixth_str_space=" "+sixth_str
+                            sec_point = "TCA"
+                            group_5th, matchGroup_5th, matchNum_5th, spot_5th, calcu_5th = regex(sec_point,fifth_str)
+                            #eigth_str=fifth_str[spot_5th[0]+3:]
+                            #eigth_str_space= " "+eigth_str
+                            #group_8th, matchGroup_8th, matchNum_8th, spot_8th, calcu_8th = regex(get_pattern(eigth_str), eigth_str_space)
+                            if get_pattern(sixth_str) != None:
+                                group_6th, matchGroup_6th, matchNum_6th, spot_6th, calcu_6th = regex(get_pattern(sixth_str), sixth_str_space)
+                                RepeatNum = int(front_group) + int(matchNum_mid) + int(back_group)
+                                result ="("+matchGroup_Ori+")"+str(front_group)+"("+matchGroup_mid+")"+str(matchNum_mid)+"("+matchGroup_Ori+")"+str(back_group-matchNum_6th-1)+"TCA"+"("+matchGroup_Ori+")"+mid_point+"("+matchGroup_6th+")"+str(matchNum_6th)
+                                result ="("+matchGroup_Ori+")"+str(front_group)+"("+matchGroup_mid+")"+str(matchNum_mid)+"("+matchGroup_Ori+")"+str(back_group-matchNum_6th-1)+"TCA"+"("+matchGroup_Ori+")"+mid_point+"("+matchGroup_6th+")"+str(matchNum_6th)
+                                checktype = "Tri3"
+                                del group_6th, matchGroup_6th, matchNum_6th, spot_6th, calcu_6th
+                            else:
+                                RepeatNum = int(front_group) + int(matchNum_mid) + int(back_group)+0.2
+                                result ="("+matchGroup_Ori+")"+str(front_group)+"("+matchGroup_mid+")"+str(matchNum_mid)+"("+matchGroup_Ori+")"+str(back_group)+"TCA"+mid_point+"("+matchGroup_Ori+")"
+                                checktype = "Tri2"
+                            del group_mid, matchGroup_mid, matchNum_mid, spot_mid, calcu_mid, mutate_str
+                            del group_forth, matchGroup_forth, matchNum_forth, spot_forth, calcu_forth
+                            del group_5th, matchGroup_5th, matchNum_5th, spot_5th, calcu_5th, fifth_str, sixth_str, sixth_str_space
+                            #del group_8th, matchGroup_8th, matchNum_8th, spot_8th, calcu_8th, eigth_str, eigth_str_space
+                        elif len(mutate_str)<=len(matchGroup_Ori):
+                            result = "(" + matchGroup_Ori + ")" + str(front_group) + "(" + mutate_str + ")" +  "(" + matchGroup_Ori + ")" + str(back_group)
+                            RepeatNum = int(front_group) + 1+ int(back_group)
+                            checktype = "Tri1"
+
+                        else:
+                            print("MUT:",mutate_str)
+                            group_mid,matchGroup_mid,matchNum_mid,spot_mid,calcu_mid = regex(get_pattern(mutate_str),mutate_str_space)
                             result ="(" + matchGroup_Ori + ")"  +  str(front_group) +"("+ matchGroup_mid +")"+ str(matchNum_mid)+ "(" + matchGroup_Ori + ")" +  str(back_group)
                             RepeatNum=int(front_group)+int(matchNum_mid)+int(back_group)
                             checktype ="Tri"
-                            del group_mid,matchGroup_mid,matchNum_mid,spot_mid,calcu_mid,mutate_str
+                            del group_mid, matchGroup_mid, matchNum_mid, spot_mid, calcu_mid, mutate_str
+
                     else:
                         if  len(mutate_str)/10 == 0.4:
                             back_str = test_str[m:]
@@ -538,13 +592,20 @@ for row in range(1,ws.max_row):
                             else:
                                 result ="(" + matchGroup_Ori + ")"  +  str(front_group) +"("+ str(mutate_str) +")"+" 1"+ "(" + matchGroup_Ori + ")" +  str(back_group)
                                 RepeatNum = int(front_group) +  middle_num + int(back_group)
+                            checktype = "DADA1"
                         else:
-                            middle_num = len(mutate_str)/10
+                            if float(len(mutate_str)/10) == 0.4:
+                                print("NUM:",float(len(mutate_str)/10))
+                                RepeatNum = int(front_group) +1 +int(back_group)
+                            else:
+                                middle_num = len(mutate_str)/10
+                                RepeatNum = int(front_group) +middle_num +int(back_group)
                             result ="(" + matchGroup_Ori + ")"  +  str(front_group) +"("+ str(mutate_str) +")"+ "(" + matchGroup_Ori + ")" +  str(back_group)
-                            RepeatNum = int(front_group) +  middle_num + int(back_group)
+                            checktype = "DADA2"
+
                         if 'D19S433' in locus_list[row]:
                             RepeatNum -= 1
-                        checktype = "DADA"
+                            checktype = "DADA3"
                         del mutate_str,middle_num
          #           print("====result====(DADA): ", result ,RepeatNum)
     #mutation at the begenning    
@@ -714,7 +775,7 @@ for row in range(1,ws.max_row):
      #   print("====result====: ", result , RepeatNum)
     
     #append the result to the new sheet
-    r = [pat_list[row],seq_list[row],result,RepeatNum,checktype ,locus_list[row],reads_list[row]]
+    r = [locus_list[row],RepeatNum,reads_list[row],result,seq_list[row],"  ",pat_list[row],checktype]
     ws2.append(r)
     report.append([locus_list[row],RepeatNum,reads_list[row]])
     #print("_______row", int(row)+1 , "end","_______")
@@ -727,15 +788,6 @@ print(ws.title, ws2.title, ws3.title,ws4.title + '...Finish||')
 wb.save(filename)
 print("|---Saved---|")
 
-
-# In[133]:
-
-
-text = " TAGATAGATAGATAGATAGATAGATAGATAGATAGATAGATAGATAGACAGACAGACAGACAGATAGA"
-text[49:65]
-
-
-# In[2]:
 
 
 
